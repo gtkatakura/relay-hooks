@@ -14,8 +14,8 @@
  */
 
 import {GraphQLString} from 'graphql';
-import {GraphQLUser} from '../nodes';
 import {User, getUserOrThrow} from '../../database';
+import {GraphQLUser} from '../nodes';
 
 type Input = {
   +id: string,
@@ -26,7 +26,11 @@ const UserQuery = {
   args: {
     id: {type: GraphQLString},
   },
-  resolve: (root: {}, {id}: Input): User => getUserOrThrow(id),
+  resolve: (root: {}, {id}: Input): User => {
+    return new Promise(resolve => {
+      setTimeout(() => resolve(getUserOrThrow(id)), 3000);
+    });
+  },
 };
 
 export {UserQuery};

@@ -15,7 +15,7 @@
 
 import * as React from 'react';
 
-import { useState } from 'react';
+import {useState} from 'react';
 
 //import {useLazyLoadQuery, RelayEnvironmentProvider} from 'react-relay/hooks';
 
@@ -31,14 +31,14 @@ import {
   Store,
   type RequestNode,
   type Variables,
-  Observable
+  Observable,
 } from 'relay-runtime';
 
-import TodoApp, { fragmentSpec } from './components/TodoApp';
+import type {appQueryResponse} from 'relay/appQuery.graphql';
+import TodoApp, {fragmentSpec} from './components/TodoApp';
 //import { useQuery, RelayEnvironmentProvider } from 'relay-hooks';
 
 import TodoTextInput from './components/TodoTextInput';
-import type { appQueryResponse } from 'relay/appQuery.graphql';
 import QueryApp from './query/QueryApp';
 /*
 async function fetchQuery(
@@ -59,12 +59,12 @@ async function fetchQuery(
   return response.json();
 }*/
 
-function fetchQuery(
-  operation,
-  variables,
-) {
-  return Observable.create((sink) => {
+function fetchQuery(operation, variables) {
+  return Observable.create(sink => {
+    const controller = new AbortController();
+
     fetch('http://localhost:3000/graphql', {
+      signal: controller.signal,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -78,12 +78,16 @@ function fetchQuery(
       .then(data => {
         if (data.errors) {
           sink.error(data.errors);
-          return
+          return;
         }
         sink.next(data);
         sink.complete();
       });
-  })
+
+    return () => {
+      controller.abort();
+    };
+  });
 }
 
 const modernEnvironment: Environment = new Environment({
@@ -91,7 +95,7 @@ const modernEnvironment: Environment = new Environment({
   store: new Store(new RecordSource()),
 });
 
-const AppTodo = function (appProps) {
+const AppTodo = function(appProps) {
   const [userId, setUserId] = useState('me');
 
   console.log('renderer apptodo', userId);
@@ -138,22 +142,24 @@ const AppTodo = function (appProps) {
 };
 const isServer = typeof window === 'undefined';
 const skip = isServer;
-const LayoutTodo = ({ userId }) => {
+const LayoutTodo = ({userId}) => {
   console.log('LayoutTodo', userId, isServer);
-  const { data, retry, error, isLoading } = useQuery(
+  const {data, retry, error, isLoading} = useQuery(
     QueryApp,
-    { userId },
+    {userId},
     {
       fetchPolicy: 'store-or-network',
       skip,
-      networkCacheConfig: { force: true, poll: isServer ? undefined : 1 * 60 * 1000 }
+      networkCacheConfig: {
+        force: true,
+        poll: isServer ? undefined : 5000,
+      },
     },
   );
 
   console.log('loading', isLoading, skip);
   if (isLoading || skip) {
-
-    return <div>loading</div>
+    return <div>loading</div>;
   } else if (error) {
     return (
       <div>
@@ -168,10 +174,25 @@ const LayoutTodo = ({ userId }) => {
   return <TodoApp user={data.user} userId={userId} retry={retry} />;
 };
 
+const Show = () => {
+  const [flag, toggle] = React.useReducer(value => !value, true);
+
+  return (
+    <>
+      <button type="button" onClick={toggle}>
+        {flag ? 'Hide' : 'Show'}
+      </button>
+      {flag && <AppTodo />}
+    </>
+  );
+};
+
 const App = (
-  <RelayEnvironmentProvider environment={modernEnvironment}>
-    <AppTodo />
-  </RelayEnvironmentProvider>
+  <React.StrictMode>
+    <RelayEnvironmentProvider environment={modernEnvironment}>
+      <Show />
+    </RelayEnvironmentProvider>
+  </React.StrictMode>
 );
 
 export default App;
